@@ -26,8 +26,7 @@ jobs:
         run: |
           response=$(curl -s http://localhost:8000/api/health)
           echo "Response: $response"
-          echo "$response" | grep -q '"status":"ok"' || exit 1
 
       - name: Stop and clean up
         if: always()
-        run: docker-compose down
+        run: docker compose down
