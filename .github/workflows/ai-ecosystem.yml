@@ -1,0 +1,33 @@
+name: Docker Compose CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Compose
+        run: |
+          docker-compose version
+
+      - name: Build and start services
+        run: |
+          docker-compose up --build -d
+          echo "Waiting for service to be ready..."
+          timeout 30 bash -c 'until curl -f http://localhost:8000/health; do sleep 1; done'
+
+      - name: Test /health endpoint
+        run: |
+          response=$(curl -s http://localhost:8080/health)
+          echo "Response: $response"
+          echo "$response" | grep -q '"status":"ok"' || exit 1
+
+      - name: Stop and clean up
+        if: always()
+        run: docker-compose down
