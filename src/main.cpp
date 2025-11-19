@@ -145,10 +145,8 @@ public:
     }
 };
 
-// ==========                                ==========
 std::unique_ptr<Nexus> g_nexus;
 
-// ==========                     ==========
 void setup_routes(httplib::Server& server) {
     try {
         g_nexus = std::make_unique<Nexus>("storage/nexus.onnx", "storage/tokenizer.model");
@@ -158,7 +156,7 @@ void setup_routes(httplib::Server& server) {
         std::cerr << "[model] load failed: " << e.what() << "\n";
     }
 
-    server.Post("/inference", [](const httplib::Request& req, httplib::Response& res) {
+    server.Post("/compose", [](const httplib::Request& req, httplib::Response& res) {
         if (!g_nexus) {
             res.status = 500;
             res.set_content(R"({"error":"Model not loaded"})", "application/json");
@@ -192,7 +190,7 @@ void setup_routes(httplib::Server& server) {
             res.set_content(R"({"error":")" + std::string(e.what()) + R"("})", "application/json");
         }
         });
-    std::cerr << "[routes] POST /inference\n";
+    std::cerr << "[routes] POST /compose\n";
 
 }
 
