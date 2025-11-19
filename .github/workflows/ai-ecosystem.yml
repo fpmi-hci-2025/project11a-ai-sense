@@ -7,19 +7,19 @@ env:
 
 on:
   push:
-    branches: [main, dev]
+    branches: [ main, dev ]
     paths:
       - 'src/**'
       - 'Dockerfile'
       - 'docker-compose.yml'
-      - '.github/workflows/api-ci.yml'
+      - '.github/workflows/ai-ecosystem.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'src/**'
       - 'Dockerfile'
       - 'docker-compose.yml'
-      - '.github/workflows/api-ci.yml'
+      - '.github/workflows/ai-ecosystem.yml'
 
 jobs:
   build:
