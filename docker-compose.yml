@@ -1,12 +1,13 @@
+version: "3.9"
+
 services:
   api:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: sense_ai
     ports:
-      - "8000:8000"
+      - "7070:7070"
     volumes:
       - ./src/:/api/src
-    command:
-      - python
-      - src/main.py
+    restart: unless-stopped
