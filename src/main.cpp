@@ -147,7 +147,20 @@ public:
 
 std::unique_ptr<Nexus> g_nexus;
 
+nlohmann::json build_validation_error(const std::vector<std::tuple<std::vector<nlohmann::json>, std::string, std::string>>& errors) {
+    nlohmann::json detail = nlohmann::json::array();
+    for (const auto& [loc, msg, err_type] : errors) {
+        detail.push_back({
+            {"loc", loc},
+            {"msg", msg},
+            {"type", err_type}
+            });
+    }
+    return { {"detail", detail} };
+}
+
 void setup_routes(httplib::Server& server) {
+
     try {
         g_nexus = std::make_unique<Nexus>("storage/nexus.onnx", "storage/tokenizer.model");
         std::cerr << "[model] loaded successfully\n";
@@ -156,7 +169,13 @@ void setup_routes(httplib::Server& server) {
         std::cerr << "[model] load failed: " << e.what() << "\n";
     }
 
-    server.Post("/compose", [](const httplib::Request& req, httplib::Response& res) {
+    server.Get("/api/health", [](const httplib::Request& /*req*/, httplib::Response& res) {
+        res.set_content("{}", "application/json");
+        res.status = 200;
+        });
+    std::cerr << "[routes] GET /api/health\n";
+
+    server.Post("/api/compose", [](const httplib::Request& req, httplib::Response& res) {
         if (!g_nexus) {
             res.status = 500;
             res.set_content(R"({"error":"Model not loaded"})", "application/json");
@@ -165,40 +184,116 @@ void setup_routes(httplib::Server& server) {
 
         try {
             if (req.body.empty()) {
-                res.status = 400;
-                res.set_content(R"({"error":"Request body is empty"})", "application/json");
+                auto error = build_validation_error({ {
+                    {{"body"}}, "Request body is empty", "value_error.missing"
+                } });
+                res.status = 422;
+                res.set_content(error.dump(), "application/json");
                 return;
             }
 
             auto j = nlohmann::json::parse(req.body);
-            if (!j.contains("text") || !j["text"].is_string()) {
-                res.status = 400;
-                res.set_content(R"({"error":"'text' (string) field is required"})", "application/json");
+
+            std::vector<std::tuple<std::vector<nlohmann::json>, std::string, std::string>> errors;
+
+            if (!j.contains("query") || !j["query"].is_string()) {
+                errors.emplace_back(std::vector<nlohmann::json>{"query"}, "Field required", "value_error.missing");
+            }
+
+            if (!j.contains("metadata")) {
+                errors.emplace_back(std::vector<nlohmann::json>{"metadata"}, "Field required", "value_error.missing");
+            }
+            else {
+                auto& meta = j["metadata"];
+                if (!meta.is_null() && !meta.is_object()) {
+                    errors.emplace_back(std::vector<nlohmann::json>{"metadata"}, "Input should be an object or null", "type_error");
+                }
+            }
+
+            if (!errors.empty()) {
+                auto error_response = build_validation_error(errors);
+                res.status = 422;
+                res.set_content(error_response.dump(), "application/json");
                 return;
             }
 
-            std::string prompt = j["text"];
+            std::string prompt = j["query"];
             std::string output = g_nexus->process(prompt, 1024, 1.0f, 5);
 
-            nlohmann::json response;
-            response["response"] = output;
+            nlohmann::json response = { {"response", output} };
             res.set_content(response.dump(), "application/json");
             res.status = 200;
+
+        }
+        catch (const nlohmann::json::parse_error&) {
+            auto error = build_validation_error({ {
+                {{"body"}}, "Invalid JSON", "value_error.jsondecode"
+            } });
+            res.status = 422;
+            res.set_content(error.dump(), "application/json");
         }
         catch (const std::exception& e) {
             res.status = 500;
             res.set_content(R"({"error":")" + std::string(e.what()) + R"("})", "application/json");
         }
         });
-    std::cerr << "[routes] POST /compose\n";
+    std::cerr << "[routes] POST /api/compose\n";
 
+    server.Post("/api/recommend", [](const httplib::Request& req, httplib::Response& res) {
+        try {
+            if (req.body.empty()) {
+                auto error = build_validation_error({ {
+                    {{"body"}}, "Request body is empty", "value_error.missing"
+                } });
+                res.status = 422;
+                res.set_content(error.dump(), "application/json");
+                return;
+            }
+
+            auto j = nlohmann::json::parse(req.body);
+
+            std::vector<std::tuple<std::vector<nlohmann::json>, std::string, std::string>> errors;
+
+            if (!j.contains("id") || !j["id"].is_string()) {
+                errors.emplace_back(std::vector<nlohmann::json>{"id"}, "Field required", "value_error.missing");
+            }
+
+            if (!errors.empty()) {
+                auto error_response = build_validation_error(errors);
+                res.status = 422;
+                res.set_content(error_response.dump(), "application/json");
+                return;
+            }
+
+            std::string user_id = j["id"];
+
+
+            // TODO: Implement recommendation logic
+            nlohmann::json response = {
+                {"recommendations", nlohmann::json::array()}
+            };
+
+            res.set_content(response.dump(), "application/json");
+            res.status = 200;
+
+        }
+        catch (const nlohmann::json::parse_error&) {
+            auto error = build_validation_error({ {
+                {{"body"}}, "Invalid JSON", "value_error.jsondecode"
+            } });
+            res.status = 422;
+            res.set_content(error.dump(), "application/json");
+        }
+        catch (const std::exception& e) {
+            res.status = 500;
+            res.set_content(R"({"error":")" + std::string(e.what()) + R"("})", "application/json");
+        }
+        });
+    std::cerr << "[routes] POST /api/recommend\n";
 }
 
-// ========== Main ==========
 int main() {
-
-
-    //                                                
+                                
     std::signal(SIGINT, signal);
     std::signal(SIGTERM, signal);
 
@@ -213,8 +308,7 @@ int main() {
         }
         });
     server.set_payload_max_length(10 * 1024 * 1024);
-
-    //                                   
+                          
     server.set_exception_handler([](const httplib::Request& /*req*/, httplib::Response& res, std::exception_ptr eptr) {
         try {
             if (eptr) std::rethrow_exception(eptr);
