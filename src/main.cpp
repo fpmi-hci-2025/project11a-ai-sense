@@ -172,7 +172,7 @@ void setup_routes(httplib::Server& server) {
     server.Get("/api/health", [](const httplib::Request& /*req*/, httplib::Response& res) {
         res.set_content("{}", "application/json");
         res.status = 200;
-        });
+    });
     std::cerr << "[routes] GET /api/health\n";
 
     server.Post("/api/compose", [](const httplib::Request& req, httplib::Response& res) {
@@ -218,7 +218,7 @@ void setup_routes(httplib::Server& server) {
             }
 
             std::string prompt = j["query"];
-            std::string output = g_nexus->process(prompt, 1024, 1.0f, 5);
+            std::string output = g_nexus->process(prompt, 1024, 1.0f, 1);
 
             nlohmann::json response = { {"response", output} };
             res.set_content(response.dump(), "application/json");
@@ -236,7 +236,7 @@ void setup_routes(httplib::Server& server) {
             res.status = 500;
             res.set_content(R"({"error":")" + std::string(e.what()) + R"("})", "application/json");
         }
-        });
+    });
     std::cerr << "[routes] POST /api/compose\n";
 
     server.Post("/api/recommend", [](const httplib::Request& req, httplib::Response& res) {
@@ -288,7 +288,7 @@ void setup_routes(httplib::Server& server) {
             res.status = 500;
             res.set_content(R"({"error":")" + std::string(e.what()) + R"("})", "application/json");
         }
-        });
+    });
     std::cerr << "[routes] POST /api/recommend\n";
 }
 

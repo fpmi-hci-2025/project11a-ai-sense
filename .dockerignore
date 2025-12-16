@@ -5,3 +5,6 @@ build
 .vscode
 .vs
 *.log
+*.py
+dataset.json
+nexus.model
